@@ -1,0 +1,32 @@
+name: Build V6.0 Standalone Release EXE
+
+on:
+
+  workflow_dispatch: # 支持在 GitHub 页面手动点击触发编译
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    # 1. 拉取代码
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    # 2. 配置 .NET 8 环境
+    - name: Setup .NET 8
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
+
+    # 3. 编译生成轻量级单文件 EXE (体积约 2MB)
+    - name: Restore and Publish Lightweight Single File EXE
+      run: |
+        dotnet publish SharePermissionsTool.csproj -c Release -r win-x64 --self-contained false /p:PublishSingleFile=true -o ./publish
+
+    # 4. 上传编译成果物
+    - name: Upload Built EXE Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: SharePermissionsTool_v6.0_Standalone
+        path: ./publish/SharePermissionsTool.exe
