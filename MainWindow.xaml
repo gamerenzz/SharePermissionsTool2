@@ -10,7 +10,7 @@
 
         <TabControl Grid.Row="0">
             <!-- 页签 1：预检与健康诊断 -->
-            <TabItem Header="[1] 迁移前预检与诊断">
+            <TabItem Header="🔍 迁移前预检与诊断">
                 <Grid Margin="10">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -27,7 +27,7 @@
             </TabItem>
 
             <!-- 页签 2：导出迁移包 -->
-            <TabItem Header="[2] 一键导出权限包">
+            <TabItem Header="📦 一键导出权限包">
                 <Grid Margin="10">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -41,7 +41,7 @@
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <ListBox Name="lstExportShares" Grid.Column="0" Height="90"/>
+                            <ListBox Name="lstExportShares" Grid.Column="0" Height="100"/>
                             <StackPanel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center">
                                 <Button Content="全选" Width="60" Margin="0,0,0,4" Click="BtnSelectAllExportShares_Click"/>
                                 <Button Content="全不选" Width="60" Click="BtnClearAllExportShares_Click"/>
@@ -49,36 +49,33 @@
                         </Grid>
                     </GroupBox>
 
-                    <GroupBox Header="导出配置选项" Grid.Row="1" Padding="10">
+                    <GroupBox Header="导出与账号策略选项" Grid.Row="1" Padding="10">
                         <StackPanel>
                             <CheckBox Name="chkExportUsers" Content="导出本地用户 (Local Users) 与 账号元数据" IsChecked="True" Margin="0,0,0,8"/>
                             <CheckBox Name="chkExportGroups" Content="导出本地组 (Local Groups) 与 组成员所属关系" IsChecked="True" Margin="0,0,0,8"/>
                             <CheckBox Name="chkExportShares" Content="导出 SMB 共享网络配置" IsChecked="True" Margin="0,0,0,8"/>
-                            <CheckBox Name="chkExportNTFS" Content="导出 NTFS 显式 ACL 权限树 (深度扫描子目录)" IsChecked="True" Margin="0,0,10,0"/>
+                            <CheckBox Name="chkExportNTFS" Content="导出 NTFS 显式 ACL 权限树 (深度扫描子目录)" IsChecked="True" Margin="0,0,12,0"/>
 
-                            <Separator Margin="0,8,0,10"/>
+                            <Separator Margin="0,5,0,12"/>
 
-                            <TextBlock Text="账号凭据与 NTLM 哈希导入（客户端免重设密码）：" FontWeight="Bold" Margin="0,0,0,6"/>
-                            
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                                <Button Content=" 导入真实 NTLM Hash 文件 (.txt) " Padding="10,4" Click="BtnImportHashFile_Click"/>
-                                <TextBlock Name="lblHashStatus" Text="未导入外部 Hash 文件" VerticalAlignment="Center" Margin="10,0,0,0" Foreground="DarkBlue" FontWeight="SemiBold"/>
+                            <!-- 密码策略配置 -->
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Text="新系统重建账号初始密码:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBox Name="txtDefaultPassword" Text="P@ssword123" Width="130" VerticalAlignment="Center"/>
                             </StackPanel>
 
                             <StackPanel Orientation="Horizontal">
-                                <CheckBox Name="chkUseDefaultPassword" Content="启用保底预设初始密码:" IsChecked="False" VerticalAlignment="Center" Margin="0,0,8,0" Click="ChkUseDefaultPassword_Click"/>
-                                <TextBox Name="txtDefaultPassword" Text="P@ssword123" Width="120" VerticalAlignment="Center" IsEnabled="False"/>
-                                <TextBlock Text="（默认禁用。仅当没有导入 Hash 或需要统一强置重置密码时勾选）" VerticalAlignment="Center" Margin="8,0,0,0" Foreground="Gray"/>
+                                <CheckBox Name="chkPasswordNeverExpires" Content="设置新建账号密码永不过期" IsChecked="True" Margin="0,0,20,0"/>
                             </StackPanel>
                         </StackPanel>
                     </GroupBox>
 
-                    <Button Name="btnExportPackage" Grid.Row="2" Content=" 打包导出完整迁移包 (.pkg.json) " Padding="20,8" Margin="0,10,0,0" FontWeight="Bold" HorizontalAlignment="Right" Click="BtnExportPackage_Click"/>
+                    <Button Name="btnExportPackage" Grid.Row="2" Content=" 📦 打包导出完整迁移包 (.pkg.json) " Padding="20,8" Margin="0,10,0,0" FontWeight="Bold" HorizontalAlignment="Right" Click="BtnExportPackage_Click"/>
                 </Grid>
             </TabItem>
 
             <!-- 页签 3：还原与路径重映射 -->
-            <TabItem Header="[3] 一键恢复与路径重映射">
+            <TabItem Header="🔄 一键恢复与路径重映射">
                 <Grid Margin="10">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -87,7 +84,7 @@
                     </Grid.RowDefinitions>
 
                     <StackPanel Orientation="Horizontal" Grid.Row="0" Margin="0,0,0,10">
-                        <Button Content=" 加载迁移包 (.pkg.json) " Padding="12,5" FontWeight="Bold" Click="BtnLoadPackage_Click"/>
+                        <Button Content=" 📂 加载迁移包 (.pkg.json) " Padding="12,5" FontWeight="Bold" Click="BtnLoadPackage_Click"/>
                         <TextBlock Name="lblLoadedPkgInfo" Text="尚未加载迁移包" VerticalAlignment="Center" Margin="15,0,0,0" Foreground="DarkBlue" FontWeight="SemiBold"/>
                     </StackPanel>
 
@@ -102,16 +99,16 @@
                     </GroupBox>
 
                     <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
-                        <CheckBox Name="chkRestoreUsers" Content="自动重建用户/组并注入 NTLM 哈希" IsChecked="True" VerticalAlignment="Center" Margin="0,0,15,0"/>
+                        <CheckBox Name="chkRestoreUsers" Content="自动重建用户与组关系" IsChecked="True" VerticalAlignment="Center" Margin="0,0,15,0"/>
                         <CheckBox Name="chkRestoreShares" Content="重建 SMB 共享配置" IsChecked="True" VerticalAlignment="Center" Margin="0,0,15,0"/>
                         <CheckBox Name="chkRestoreACLs" Content="应用 NTFS ACL 权限" IsChecked="True" VerticalAlignment="Center" Margin="0,0,20,0"/>
-                        <Button Name="btnStartRestore" Content=" 开始一键恢复与还原 " Padding="20,8" FontWeight="Bold" IsEnabled="False" Click="BtnStartRestore_Click"/>
+                        <Button Name="btnStartRestore" Content=" 🚀 开始一键恢复与还原 " Padding="20,8" FontWeight="Bold" IsEnabled="False" Click="BtnStartRestore_Click"/>
                     </StackPanel>
                 </Grid>
             </TabItem>
 
             <!-- 页签 4：迁移审计报告 -->
-            <TabItem Header="[4] 迁移结果审计报告">
+            <TabItem Header="📊 迁移结果审计报告">
                 <Grid Margin="10">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -119,7 +116,8 @@
                     </Grid.RowDefinitions>
 
                     <StackPanel Orientation="Horizontal" Grid.Row="0" Margin="0,0,0,10">
-                        <Button Content=" 导出 HTML 完整审计报告 " Padding="12,5" Click="BtnExportHtmlReport_Click"/>
+                        <Button Content=" 📄 导出员工初始密码与权限通知单 (CSV) " Padding="12,5" FontWeight="Bold" Click="BtnExportUserNotice_Click"/>
+                        <Button Content=" 导出 HTML 完整审计报告 " Padding="12,5" Margin="10,0,0,0" Click="BtnExportHtmlReport_Click"/>
                         <Button Content=" 导出 CSV 详细日志 " Padding="12,5" Margin="10,0,0,0" Click="BtnExportCsvLog_Click"/>
                     </StackPanel>
 
