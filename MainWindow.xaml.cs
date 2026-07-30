@@ -13,7 +13,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media; // 修复 Brushes 报错缺失的命名空间
+using System.Windows.Media;
 using Microsoft.Win32;
 
 namespace SharePermissionsTool
@@ -34,7 +34,8 @@ namespace SharePermissionsTool
         {
             public string SourceServer { get; set; } = Environment.MachineName;
             public DateTime ExportTime { get; set; } = DateTime.Now;
-            public string DefaultPassword { get; set; } = "P@ssword123";
+            public bool UseDefaultPassword { get; set; } = false;
+            public string DefaultPassword { get; set; } = "";
 
             public List<UserInfo> Users { get; set; } = new();
             public List<GroupInfo> Groups { get; set; } = new();
@@ -46,7 +47,7 @@ namespace SharePermissionsTool
         {
             public string Name { get; set; } = "";
             public string Description { get; set; } = "";
-            public string NtlmHash { get; set; } = ""; // 存放 32 位真实 NTLM Hash
+            public string NtlmHash { get; set; } = ""; // 32 位真实 NTLM Hash
         }
 
         public class GroupInfo
@@ -141,7 +142,11 @@ namespace SharePermissionsTool
             foreach (CheckBox item in box.Items) item.IsChecked = isChecked;
         }
 
-        // 智能解析导入的 NTLM Hash .txt 文件
+        private void ChkUseDefaultPassword_Click(object sender, RoutedEventArgs e)
+        {
+            txtDefaultPassword.IsEnabled = chkUseDefaultPassword.IsChecked == true;
+        }
+
         private void BtnImportHashFile_Click(object sender, RoutedEventArgs e)
         {
             var dialog = new OpenFileDialog
@@ -162,14 +167,12 @@ namespace SharePermissionsTool
                         if (string.IsNullOrWhiteSpace(line) || line.StartsWith("#") || line.StartsWith("用户"))
                             continue;
 
-                        // 支持空格、制表符、冒号等分隔符
                         var parts = line.Split(new[] { ' ', '\t', ':', '|' }, StringSplitOptions.RemoveEmptyEntries);
                         if (parts.Length >= 2)
                         {
                             string user = parts[0].Trim();
                             string hash = parts[1].Trim();
 
-                            // 验证是否为 32 位十六进制的 NTLM Hash
                             if (hash.Length == 32 && Regex.IsMatch(hash, @"^[a-fA-F0-9]{32}$"))
                             {
                                 _importedHashes[user] = hash;
@@ -220,13 +223,15 @@ namespace SharePermissionsTool
 
             try
             {
-                string defaultPwd = txtDefaultPassword.Text;
+                bool useDefaultPwd = chkUseDefaultPassword.IsChecked == true;
+                string defaultPwd = useDefaultPwd ? txtDefaultPassword.Text : "";
+
                 bool doUsers = chkExportUsers.IsChecked == true;
                 bool doGroups = chkExportGroups.IsChecked == true;
                 bool doShares = chkExportShares.IsChecked == true;
                 bool doNTFS = chkExportNTFS.IsChecked == true;
 
-                var pkg = await Task.Run(() => BuildPackage(selectedShares, defaultPwd, doUsers, doGroups, doShares, doNTFS));
+                var pkg = await Task.Run(() => BuildPackage(selectedShares, useDefaultPwd, defaultPwd, doUsers, doGroups, doShares, doNTFS));
 
                 string json = JsonSerializer.Serialize(pkg, new JsonSerializerOptions { WriteIndented = true });
                 File.WriteAllText(dialog.FileName, json, Encoding.UTF8);
@@ -238,10 +243,11 @@ namespace SharePermissionsTool
             finally { btnExportPackage.IsEnabled = true; }
         }
 
-        private MigrationPackage BuildPackage(List<ShareConfig> shares, string defaultPwd, bool doUsers, bool doGroups, bool doShares, bool doNTFS)
+        private MigrationPackage BuildPackage(List<ShareConfig> shares, bool useDefaultPwd, string defaultPwd, bool doUsers, bool doGroups, bool doShares, bool doNTFS)
         {
             var pkg = new MigrationPackage
             {
+                UseDefaultPassword = useDefaultPwd,
                 DefaultPassword = defaultPwd,
                 Shares = doShares ? shares : new()
             };
@@ -257,7 +263,6 @@ namespace SharePermissionsTool
 
                     var user = new UserInfo { Name = userName, Description = desc };
 
-                    // 优先匹配绑定的真实 NTLM Hash
                     if (_importedHashes.TryGetValue(userName, out string? realHash))
                     {
                         user.NtlmHash = realHash;
@@ -413,8 +418,12 @@ namespace SharePermissionsTool
                 {
                     bool hasRealHash = !string.IsNullOrEmpty(user.NtlmHash) && user.NtlmHash.Length == 32;
 
-                    // 创建账号
-                    RunCmd($"net user \"{user.Name}\" \"{pkg.DefaultPassword}\" /add /comment:\"重构迁移用户\"");
+                    // 判断设置密码
+                    string pwdToSet = pkg.UseDefaultPassword && !string.IsNullOrEmpty(pkg.DefaultPassword) 
+                        ? pkg.DefaultPassword 
+                        : "P@ss_" + Guid.NewGuid().ToString("N").Substring(0, 8);
+
+                    RunCmd($"net user \"{user.Name}\" \"{pwdToSet}\" /add /comment:\"重构迁移用户\"");
 
                     if (hasRealHash)
                     {
@@ -425,12 +434,12 @@ namespace SharePermissionsTool
                         }
                         else
                         {
-                            logs.Add($" - [✔ 账号创建成功] 用户: {user.Name} (使用默认保底密码: {pkg.DefaultPassword})");
+                            logs.Add($" - [✔ 账号创建成功] 用户: {user.Name}");
                         }
                     }
                     else
                     {
-                        logs.Add($" - [✔ 账号创建成功] 用户: {user.Name} (使用默认密码: {pkg.DefaultPassword})");
+                        logs.Add($" - [✔ 账号创建成功] 用户: {user.Name}");
                     }
                 }
 
@@ -498,7 +507,6 @@ namespace SharePermissionsTool
             }
         }
 
-        // 调用 Windows 原生机制注入 NTLM Hash
         private bool SetUserNtlmHashNative(string userName, string ntlmHashHex)
         {
             try
