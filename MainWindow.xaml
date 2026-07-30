@@ -1,7 +1,7 @@
 <Window x:Class="SharePermissionsTool.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Windows 共享与 NTFS 权限迁移大师 (精简独立版 v6.2)" Height="800" Width="1120" WindowStartupLocation="CenterScreen">
+        Title="Windows 共享与 NTFS 权限迁移大师 (精简独立版 v6.3)" Height="800" Width="1120" WindowStartupLocation="CenterScreen">
     <Grid Margin="10">
         <Grid.RowDefinitions>
             <RowDefinition Height="*"/>
@@ -61,15 +61,16 @@
                             <!-- NTLM Hash 文件导入区域 -->
                             <TextBlock Text="账号凭据与 NTLM 哈希导入（客户端免重设密码）：" FontWeight="Bold" Margin="0,0,0,6"/>
                             
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
                                 <Button Content=" 📂 导入真实 NTLM Hash 文件 (.txt) " Padding="10,4" Click="BtnImportHashFile_Click"/>
-                                <TextBlock Name="lblHashStatus" Text="未导入外部 Hash 文件 (将生成安全随机占位 Hash)" VerticalAlignment="Center" Margin="10,0,0,0" Foreground="DarkBlue" FontWeight="SemiBold"/>
+                                <TextBlock Name="lblHashStatus" Text="未导入外部 Hash 文件" VerticalAlignment="Center" Margin="10,0,0,0" Foreground="DarkBlue" FontWeight="SemiBold"/>
                             </StackPanel>
 
+                            <!-- 保底预设初始密码：默认不勾选 -->
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="保底预设初始密码:" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                                <TextBox Name="txtDefaultPassword" Text="P@ssword123" Width="120" VerticalAlignment="Center"/>
-                                <TextBlock Text="（当没导入 Hash 或新建账号时作为保底初始密码）" VerticalAlignment="Center" Margin="8,0,0,0" Foreground="Gray"/>
+                                <CheckBox Name="chkUseDefaultPassword" Content="启用保底预设初始密码:" IsChecked="False" VerticalAlignment="Center" Margin="0,0,8,0" Click="ChkUseDefaultPassword_Click"/>
+                                <TextBox Name="txtDefaultPassword" Text="P@ssword123" Width="120" VerticalAlignment="Center" IsEnabled="False"/>
+                                <TextBlock Text="（默认禁用。仅当没有导入 Hash 或需要统一强置重置密码时勾选）" VerticalAlignment="Center" Margin="8,0,0,0" Foreground="Gray"/>
                             </StackPanel>
                         </StackPanel>
                     </GroupBox>
