@@ -47,7 +47,7 @@ namespace SharePermissionsTool
         {
             public string Name { get; set; } = "";
             public string Description { get; set; } = "";
-            public string NtlmHash { get; set; } = ""; // 32 位真实 NTLM Hash
+            public string NtlmHash { get; set; } = "";
         }
 
         public class GroupInfo
@@ -92,22 +92,22 @@ namespace SharePermissionsTool
             sb.AppendLine($"[2] 操作系统版本: {Environment.OSVersion}");
 
             bool isAdmin = new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator);
-            sb.AppendLine($"[3] 管理员权限状态: {(isAdmin ? "✔ 已获取高权限" : "❌ 未提权 (请右键以管理员运行)")}");
+            sb.AppendLine($"[3] 管理员权限状态: {(isAdmin ? "[成功] 已获取高权限" : "[失败] 未提权 (请右键以管理员运行)")}");
 
             try
             {
                 using var searcher = new ManagementObjectSearcher("SELECT Name FROM Win32_Share WHERE Type=0");
                 int shareCount = searcher.Get().Count;
-                sb.AppendLine($"[4] WMI 服务状态: ✔ 正常 (识别到 {shareCount} 个磁盘共享)");
+                sb.AppendLine($"[4] WMI 服务状态: [成功] 正常 (识别到 {shareCount} 个磁盘共享)");
             }
             catch (Exception ex)
             {
-                sb.AppendLine($"[4] WMI 服务状态: ❌ 异常 ({ex.Message})");
+                sb.AppendLine($"[4] WMI 服务状态: [失败] 异常 ({ex.Message})");
             }
 
             sb.AppendLine("\n建议事项:");
             sb.AppendLine(" - 导出的包包含用户、组、真实 NTLM 认证 Hash 与 ACL 权限。");
-            sb.AppendLine(" - 还原时导入真实的 NTLM Hash，可确保客户端免输入密码、完全无感连接。");
+            sb.AppendLine(" - 还原时导入自然的 NTLM Hash，可确保客户端免输入密码、完全无感连接。");
 
             txtCheckLog.Text = sb.ToString();
             lblStatus.Text = "预检完成。";
@@ -182,7 +182,7 @@ namespace SharePermissionsTool
 
                     if (_importedHashes.Count > 0)
                     {
-                        lblHashStatus.Text = $"✔ 已成功导入 {_importedHashes.Count} 个账号的真实 NTLM Hash！";
+                        lblHashStatus.Text = $"[成功] 已成功导入 {_importedHashes.Count} 个账号的真实 NTLM Hash！";
                         lblHashStatus.Foreground = Brushes.Green;
                     }
                     else
@@ -252,7 +252,6 @@ namespace SharePermissionsTool
                 Shares = doShares ? shares : new()
             };
 
-            // 导出用户与 Hash
             if (doUsers)
             {
                 using var searcher = new ManagementObjectSearcher("SELECT Name, Description FROM Win32_UserAccount WHERE LocalAccount=True");
@@ -272,7 +271,6 @@ namespace SharePermissionsTool
                 }
             }
 
-            // 导出组与成员关系
             if (doGroups)
             {
                 using var searcher = new ManagementObjectSearcher("SELECT Name, Description FROM Win32_Group WHERE LocalAccount=True");
@@ -295,7 +293,6 @@ namespace SharePermissionsTool
                 }
             }
 
-            // 导出 NTFS ACL 规则
             if (doNTFS)
             {
                 foreach (var share in shares)
@@ -410,7 +407,6 @@ namespace SharePermissionsTool
         {
             logs.Add($"========== 还原执行日志 ({DateTime.Now}) ==========");
 
-            // 1. 还原用户与组
             if (doUsers)
             {
                 logs.Add("\n[阶段 1] 重建本地用户与组 (NTLM 凭据恢复)...");
@@ -418,7 +414,6 @@ namespace SharePermissionsTool
                 {
                     bool hasRealHash = !string.IsNullOrEmpty(user.NtlmHash) && user.NtlmHash.Length == 32;
 
-                    // 判断设置密码
                     string pwdToSet = pkg.UseDefaultPassword && !string.IsNullOrEmpty(pkg.DefaultPassword) 
                         ? pkg.DefaultPassword 
                         : "P@ss_" + Guid.NewGuid().ToString("N").Substring(0, 8);
@@ -430,16 +425,16 @@ namespace SharePermissionsTool
                         bool hashSetSuccess = SetUserNtlmHashNative(user.Name, user.NtlmHash);
                         if (hashSetSuccess)
                         {
-                            logs.Add($" - [✔ 真实 Hash 克隆成功] 用户: {user.Name} -> NTLM: {user.NtlmHash} (客户端连接免重新输入密码！)");
+                            logs.Add($" - [成功] 真实 Hash 克隆成功，用户: {user.Name} -> NTLM: {user.NtlmHash} (客户端免重设密码！)");
                         }
                         else
                         {
-                            logs.Add($" - [✔ 账号创建成功] 用户: {user.Name}");
+                            logs.Add($" - [成功] 账号创建成功，用户: {user.Name}");
                         }
                     }
                     else
                     {
-                        logs.Add($" - [✔ 账号创建成功] 用户: {user.Name}");
+                        logs.Add($" - [成功] 账号创建成功，用户: {user.Name}");
                     }
                 }
 
@@ -455,7 +450,6 @@ namespace SharePermissionsTool
                 }
             }
 
-            // 2. 恢复共享配置
             if (doShares)
             {
                 logs.Add("\n[阶段 2] 重建 SMB 共享网络配置...");
@@ -468,7 +462,6 @@ namespace SharePermissionsTool
                 }
             }
 
-            // 3. 应用 NTFS ACL 权限
             if (doACLs)
             {
                 logs.Add("\n[阶段 3] 应用 NTFS ACL 权限树...");
