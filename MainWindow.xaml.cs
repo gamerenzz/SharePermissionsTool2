@@ -13,6 +13,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media; // 修复 Brushes 报错缺失的命名空间
 using Microsoft.Win32;
 
 namespace SharePermissionsTool
@@ -417,7 +418,6 @@ namespace SharePermissionsTool
 
                     if (hasRealHash)
                     {
-                        // 写入 32 位真实 NTLM Hash，实现客户端连接无感登录
                         bool hashSetSuccess = SetUserNtlmHashNative(user.Name, user.NtlmHash);
                         if (hashSetSuccess)
                         {
@@ -503,7 +503,6 @@ namespace SharePermissionsTool
         {
             try
             {
-                // 通过 Powershell 安全原生接口覆盖本地 SAM 账户的 NTLM 哈希
                 string psScript = $"$u = [ADSI]'WinNT://./{userName},user'; $u.SetPassword('');";
                 RunCmd($"powershell -Command \"{psScript}\"");
                 return true;
