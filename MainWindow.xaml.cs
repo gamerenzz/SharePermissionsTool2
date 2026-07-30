@@ -9,7 +9,6 @@ using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -21,7 +20,6 @@ namespace SharePermissionsTool
     public partial class MainWindow : Window
     {
         private MigrationPackage? _activePackage;
-        private Dictionary<string, string> _importedHashes = new(StringComparer.OrdinalIgnoreCase);
 
         public MainWindow()
         {
@@ -34,8 +32,8 @@ namespace SharePermissionsTool
         {
             public string SourceServer { get; set; } = Environment.MachineName;
             public DateTime ExportTime { get; set; } = DateTime.Now;
-            public bool UseDefaultPassword { get; set; } = false;
-            public string DefaultPassword { get; set; } = "";
+            public string DefaultPassword { get; set; } = "P@ssword123";
+            public bool PasswordNeverExpires { get; set; } = true;
 
             public List<UserInfo> Users { get; set; } = new();
             public List<GroupInfo> Groups { get; set; } = new();
@@ -47,7 +45,6 @@ namespace SharePermissionsTool
         {
             public string Name { get; set; } = "";
             public string Description { get; set; } = "";
-            public string NtlmHash { get; set; } = "";
         }
 
         public class GroupInfo
@@ -92,29 +89,29 @@ namespace SharePermissionsTool
             sb.AppendLine($"[2] 操作系统版本: {Environment.OSVersion}");
 
             bool isAdmin = new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator);
-            sb.AppendLine($"[3] 管理员权限状态: {(isAdmin ? "[成功] 已获取高权限" : "[失败] 未提权 (请右键以管理员运行)")}");
+            sb.AppendLine($"[3] 管理员权限状态: {(isAdmin ? "✔ 已获取高权限" : "❌ 未提权 (请右键以管理员运行)")}");
 
             try
             {
                 using var searcher = new ManagementObjectSearcher("SELECT Name FROM Win32_Share WHERE Type=0");
                 int shareCount = searcher.Get().Count;
-                sb.AppendLine($"[4] WMI 服务状态: [成功] 正常 (识别到 {shareCount} 个磁盘共享)");
+                sb.AppendLine($"[4] WMI 服务状态: ✔ 正常 (识别到 {shareCount} 个磁盘共享)");
             }
             catch (Exception ex)
             {
-                sb.AppendLine($"[4] WMI 服务状态: [失败] 异常 ({ex.Message})");
+                sb.AppendLine($"[4] WMI 服务状态: ❌ 异常 ({ex.Message})");
             }
 
             sb.AppendLine("\n建议事项:");
-            sb.AppendLine(" - 导出的包包含用户、组、真实 NTLM 认证 Hash 与 ACL 权限。");
-            sb.AppendLine(" - 还原时导入自然的 NTLM Hash，可确保客户端免输入密码、完全无感连接。");
+            sb.AppendLine(" - 导出的包包含用户、组关联结构、SMB 共享及完整 NTFS ACL 权限树。");
+            sb.AppendLine(" - 还原完成后，可直接导出《员工初始密码与权限通知单》分配给员工。");
 
             txtCheckLog.Text = sb.ToString();
             lblStatus.Text = "预检完成。";
         }
         #endregion
 
-        #region 模块 1：导入 Hash 与打包导出
+        #region 模块 1：打包导出
         private void LoadExportShares()
         {
             lstExportShares.Items.Clear();
@@ -140,61 +137,6 @@ namespace SharePermissionsTool
         private void SetListChecked(ListBox box, bool isChecked)
         {
             foreach (CheckBox item in box.Items) item.IsChecked = isChecked;
-        }
-
-        private void ChkUseDefaultPassword_Click(object sender, RoutedEventArgs e)
-        {
-            txtDefaultPassword.IsEnabled = chkUseDefaultPassword.IsChecked == true;
-        }
-
-        private void BtnImportHashFile_Click(object sender, RoutedEventArgs e)
-        {
-            var dialog = new OpenFileDialog
-            {
-                Filter = "NTLM Hash 文本文件 (*.txt)|*.txt|所有文件 (*.*)|*.*",
-                Title = "选择导出的 NTLM Hash 文本文件"
-            };
-
-            if (dialog.ShowDialog() == true)
-            {
-                try
-                {
-                    _importedHashes.Clear();
-                    string[] lines = File.ReadAllLines(dialog.FileName);
-
-                    foreach (var line in lines)
-                    {
-                        if (string.IsNullOrWhiteSpace(line) || line.StartsWith("#") || line.StartsWith("用户"))
-                            continue;
-
-                        var parts = line.Split(new[] { ' ', '\t', ':', '|' }, StringSplitOptions.RemoveEmptyEntries);
-                        if (parts.Length >= 2)
-                        {
-                            string user = parts[0].Trim();
-                            string hash = parts[1].Trim();
-
-                            if (hash.Length == 32 && Regex.IsMatch(hash, @"^[a-fA-F0-9]{32}$"))
-                            {
-                                _importedHashes[user] = hash;
-                            }
-                        }
-                    }
-
-                    if (_importedHashes.Count > 0)
-                    {
-                        lblHashStatus.Text = $"[成功] 已成功导入 {_importedHashes.Count} 个账号的真实 NTLM Hash！";
-                        lblHashStatus.Foreground = Brushes.Green;
-                    }
-                    else
-                    {
-                        MessageBox.Show("未能在 TXT 文件中识别到有效的 32 位 NTLM Hash 格式，请检查文件内容！");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show("读取 Hash 文件失败: " + ex.Message);
-                }
-            }
         }
 
         private async void BtnExportPackage_Click(object sender, RoutedEventArgs e)
@@ -223,35 +165,35 @@ namespace SharePermissionsTool
 
             try
             {
-                bool useDefaultPwd = chkUseDefaultPassword.IsChecked == true;
-                string defaultPwd = useDefaultPwd ? txtDefaultPassword.Text : "";
-
+                string defaultPwd = txtDefaultPassword.Text;
+                bool pwdNeverExpires = chkPasswordNeverExpires.IsChecked == true;
                 bool doUsers = chkExportUsers.IsChecked == true;
                 bool doGroups = chkExportGroups.IsChecked == true;
                 bool doShares = chkExportShares.IsChecked == true;
                 bool doNTFS = chkExportNTFS.IsChecked == true;
 
-                var pkg = await Task.Run(() => BuildPackage(selectedShares, useDefaultPwd, defaultPwd, doUsers, doGroups, doShares, doNTFS));
+                var pkg = await Task.Run(() => BuildPackage(selectedShares, defaultPwd, pwdNeverExpires, doUsers, doGroups, doShares, doNTFS));
 
                 string json = JsonSerializer.Serialize(pkg, new JsonSerializerOptions { WriteIndented = true });
                 File.WriteAllText(dialog.FileName, json, Encoding.UTF8);
 
-                MessageBox.Show($"导出成功！\n保存位置: {dialog.FileName}\n共打包 {pkg.Users.Count} 用户 (匹配到 {_importedHashes.Count} 个真实 Hash), {pkg.Groups.Count} 组, {pkg.AclRules.Count} 条 ACL 规则。");
+                MessageBox.Show($"导出成功！\n保存位置: {dialog.FileName}\n共打包 {pkg.Users.Count} 用户, {pkg.Groups.Count} 组, {pkg.AclRules.Count} 条 ACL 规则。");
                 lblStatus.Text = "导出完成。";
             }
             catch (Exception ex) { MessageBox.Show("导出失败: " + ex.Message); }
             finally { btnExportPackage.IsEnabled = true; }
         }
 
-        private MigrationPackage BuildPackage(List<ShareConfig> shares, bool useDefaultPwd, string defaultPwd, bool doUsers, bool doGroups, bool doShares, bool doNTFS)
+        private MigrationPackage BuildPackage(List<ShareConfig> shares, string defaultPwd, bool pwdNeverExpires, bool doUsers, bool doGroups, bool doShares, bool doNTFS)
         {
             var pkg = new MigrationPackage
             {
-                UseDefaultPassword = useDefaultPwd,
                 DefaultPassword = defaultPwd,
+                PasswordNeverExpires = pwdNeverExpires,
                 Shares = doShares ? shares : new()
             };
 
+            // 导出用户
             if (doUsers)
             {
                 using var searcher = new ManagementObjectSearcher("SELECT Name, Description FROM Win32_UserAccount WHERE LocalAccount=True");
@@ -259,18 +201,11 @@ namespace SharePermissionsTool
                 {
                     string userName = obj["Name"]?.ToString() ?? "";
                     string desc = obj["Description"]?.ToString() ?? "";
-
-                    var user = new UserInfo { Name = userName, Description = desc };
-
-                    if (_importedHashes.TryGetValue(userName, out string? realHash))
-                    {
-                        user.NtlmHash = realHash;
-                    }
-
-                    pkg.Users.Add(user);
+                    pkg.Users.Add(new UserInfo { Name = userName, Description = desc });
                 }
             }
 
+            // 导出组与成员关系
             if (doGroups)
             {
                 using var searcher = new ManagementObjectSearcher("SELECT Name, Description FROM Win32_Group WHERE LocalAccount=True");
@@ -293,6 +228,7 @@ namespace SharePermissionsTool
                 }
             }
 
+            // 导出 NTFS ACL 规则
             if (doNTFS)
             {
                 foreach (var share in shares)
@@ -360,8 +296,7 @@ namespace SharePermissionsTool
 
                 if (_activePackage == null) return;
 
-                int realHashCount = _activePackage.Users.Count(u => !string.IsNullOrEmpty(u.NtlmHash));
-                lblLoadedPkgInfo.Text = $"已加载包: [{_activePackage.SourceServer}]，已嵌入 {realHashCount} 个真实 NTLM Hash，共享: {_activePackage.Shares.Count}个, ACL: {_activePackage.AclRules.Count}条";
+                lblLoadedPkgInfo.Text = $"已加载包: [{_activePackage.SourceServer}]，包含 用户: {_activePackage.Users.Count}个, 组: {_activePackage.Groups.Count}个, 共享: {_activePackage.Shares.Count}个, ACL: {_activePackage.AclRules.Count}条";
 
                 var mappingList = _activePackage.Shares.Select(s => new PathMappingItem
                 {
@@ -407,35 +342,16 @@ namespace SharePermissionsTool
         {
             logs.Add($"========== 还原执行日志 ({DateTime.Now}) ==========");
 
+            // 1. 还原用户与组
             if (doUsers)
             {
-                logs.Add("\n[阶段 1] 重建本地用户与组 (NTLM 凭据恢复)...");
+                logs.Add("\n[阶段 1] 重建本地用户与组...");
+                string expiresFlag = pkg.PasswordNeverExpires ? " /expires:never" : "";
+
                 foreach (var user in pkg.Users)
                 {
-                    bool hasRealHash = !string.IsNullOrEmpty(user.NtlmHash) && user.NtlmHash.Length == 32;
-
-                    string pwdToSet = pkg.UseDefaultPassword && !string.IsNullOrEmpty(pkg.DefaultPassword) 
-                        ? pkg.DefaultPassword 
-                        : "P@ss_" + Guid.NewGuid().ToString("N").Substring(0, 8);
-
-                    RunCmd($"net user \"{user.Name}\" \"{pwdToSet}\" /add /comment:\"重构迁移用户\"");
-
-                    if (hasRealHash)
-                    {
-                        bool hashSetSuccess = SetUserNtlmHashNative(user.Name, user.NtlmHash);
-                        if (hashSetSuccess)
-                        {
-                            logs.Add($" - [成功] 真实 Hash 克隆成功，用户: {user.Name} -> NTLM: {user.NtlmHash} (客户端免重设密码！)");
-                        }
-                        else
-                        {
-                            logs.Add($" - [成功] 账号创建成功，用户: {user.Name}");
-                        }
-                    }
-                    else
-                    {
-                        logs.Add($" - [成功] 账号创建成功，用户: {user.Name}");
-                    }
+                    RunCmd($"net user \"{user.Name}\" \"{pkg.DefaultPassword}\" /add /comment:\"重构迁移用户\"{expiresFlag}");
+                    logs.Add($" - [✔ 账号创建成功] 用户: {user.Name} (初始密码: {pkg.DefaultPassword})");
                 }
 
                 foreach (var group in pkg.Groups)
@@ -450,6 +366,7 @@ namespace SharePermissionsTool
                 }
             }
 
+            // 2. 恢复共享配置
             if (doShares)
             {
                 logs.Add("\n[阶段 2] 重建 SMB 共享网络配置...");
@@ -462,6 +379,7 @@ namespace SharePermissionsTool
                 }
             }
 
+            // 3. 应用 NTFS ACL 权限
             if (doACLs)
             {
                 logs.Add("\n[阶段 3] 应用 NTFS ACL 权限树...");
@@ -500,20 +418,6 @@ namespace SharePermissionsTool
             }
         }
 
-        private bool SetUserNtlmHashNative(string userName, string ntlmHashHex)
-        {
-            try
-            {
-                string psScript = $"$u = [ADSI]'WinNT://./{userName},user'; $u.SetPassword('');";
-                RunCmd($"powershell -Command \"{psScript}\"");
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
         private void RunCmd(string cmd)
         {
             try
@@ -529,7 +433,53 @@ namespace SharePermissionsTool
         }
         #endregion
 
-        #region 模块 5：审计报告导出
+        #region 模块 5：审计报告与员工通知单导出
+        private void BtnExportUserNotice_Click(object sender, RoutedEventArgs e)
+        {
+            if (_activePackage == null || !_activePackage.Users.Any())
+            {
+                MessageBox.Show("请先在【一键恢复与路径重映射】页签中加载迁移包！");
+                return;
+            }
+
+            var dialog = new SaveFileDialog
+            {
+                Filter = "CSV 通知单 (*.csv)|*.csv",
+                FileName = $"员工账号初始密码通知单_{DateTime.Now:yyyyMMdd}.csv"
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                try
+                {
+                    var sb = new StringBuilder();
+                    sb.AppendLine("用户名,分配的初始密码,所属组,拥有权限的共享文件夹");
+
+                    foreach (var user in _activePackage.Users)
+                    {
+                        // 查找属于哪些组
+                        var userGroups = _activePackage.Groups
+                            .Where(g => g.Members.Contains(user.Name, StringComparer.OrdinalIgnoreCase))
+                            .Select(g => g.Name);
+                        string groupStr = string.Join("; ", userGroups);
+
+                        // 查找对哪些共享有权限
+                        var userShares = _activePackage.AclRules
+                            .Where(r => r.Account.Equals(user.Name, StringComparison.OrdinalIgnoreCase))
+                            .Select(r => r.ShareName)
+                            .Distinct();
+                        string shareStr = string.Join("; ", userShares);
+
+                        sb.AppendLine($"\"{user.Name}\",\"{_activePackage.DefaultPassword}\",\"{groupStr}\",\"{shareStr}\"");
+                    }
+
+                    File.WriteAllText(dialog.FileName, sb.ToString(), Encoding.UTF8);
+                    MessageBox.Show("员工通知单导出成功！您可以将其直接发送给各部门主管。\n路径: " + dialog.FileName);
+                }
+                catch (Exception ex) { MessageBox.Show("导出通知单失败: " + ex.Message); }
+            }
+        }
+
         private void BtnExportHtmlReport_Click(object sender, RoutedEventArgs e)
         {
             if (string.IsNullOrEmpty(txtAuditLog.Text)) { MessageBox.Show("暂无审计日志！"); return; }
